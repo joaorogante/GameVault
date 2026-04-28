@@ -8,8 +8,12 @@ router.post('/friends', async (req, res) => {
   try {
     const { user_id, user_name, friend_id, friend_name } = req.body;
     await session.run(`
-      MERGE (a:Player {userId: $user_id, name: $user_name})
-      MERGE (b:Player {userId: $friend_id, name: $friend_name})
+      MERGE (a:Player {userId: $user_id})
+      ON CREATE SET a.name = $user_name
+      ON MATCH SET a.name = $user_name
+      MERGE (b:Player {userId: $friend_id})
+      ON CREATE SET b.name = $friend_name
+      ON MATCH SET b.name = $friend_name
       MERGE (a)-[:FRIENDS_WITH]->(b)
       MERGE (b)-[:FRIENDS_WITH]->(a)
     `, { user_id: String(user_id), user_name, friend_id: String(friend_id), friend_name });
@@ -84,6 +88,26 @@ router.get('/players', async (req, res) => {
     const result = await session.run('MATCH (p:Player) RETURN p.userId AS id, p.name AS name ORDER BY p.name');
     const players = result.records.map(r => ({ id: r.get('id'), name: r.get('name') }));
     res.json(players);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    await session.close();
+  }
+});
+
+// UPDATE - Atualizar dados do jogador
+router.put('/players/:userId', async (req, res) => {
+  const session = getDriver().session();
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Nome é obrigatório' });
+    const result = await session.run(`
+      MATCH (p:Player {userId: $userId})
+      SET p.name = $name
+      RETURN p.userId AS id, p.name AS name
+    `, { userId: req.params.userId, name });
+    if (result.records.length === 0) return res.status(404).json({ error: 'Jogador não encontrado no grafo' });
+    res.json({ id: result.records[0].get('id'), name: result.records[0].get('name') });
   } catch (err) {
     res.status(500).json({ error: err.message });
   } finally {
