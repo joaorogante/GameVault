@@ -1,153 +1,189 @@
-# 🎮 GameVault — Plataforma de Jogos Online
+# GameVault - Plataforma de Jogos Online
 
-## 1. Tema Escolhido
+GameVault e uma plataforma web para cadastro de usuarios, catalogo de jogos, reviews e recursos sociais. O projeto usa **Polyglot Persistence**, com um banco diferente para cada tipo de dado.
 
-**GameVault** é uma plataforma de jogos online onde usuários podem se cadastrar, explorar um catálogo de jogos, escrever reviews, e adicionar amigos para receber recomendações. O sistema utiliza **Polyglot Persistence** com 4 bancos de dados diferentes, cada um escolhido pelo tipo de dado que armazena.
+## Bancos Utilizados
 
-## 2. Justificativa dos Bancos de Dados
+| Banco | Uso no projeto | Rotas |
+| --- | --- | --- |
+| PostgreSQL | Usuarios, cadastro e login | `/api/users` |
+| MongoDB | Catalogo de jogos | `/api/games` |
+| Redis | Reviews, avaliacoes e ranking | `/api/reviews` |
+| Neo4j | Amizades e sugestoes sociais | `/api/social` |
 
-### 🗄️ PostgreSQL (Banco Relacional — RDB)
-**Dados:** Usuários (cadastro, login, perfil)
+## Funcionalidades
 
-**Justificativa:** Dados de usuários possuem estrutura fixa (nome, email, senha, data de cadastro) e restrições de integridade como unicidade de email. O banco relacional garante transações ACID, constraints e é ideal para dados estruturados que não mudam de schema.
+- Login obrigatorio antes de acessar o painel.
+- Cadastro de usuario pela tela `cadastro.html`.
+- Painel protegido em `app.html`.
+- CRUD de usuarios no PostgreSQL.
+- CRUD de jogos no MongoDB.
+- Reviews com nota usando Redis.
+- Amizades e sugestoes usando Neo4j.
 
-### 📄 MongoDB (NoSQL — Document Storage — DB1)
-**Dados:** Catálogo de jogos (nome, descrição, gêneros, plataformas, requisitos, imagens)
+## Estrutura
 
-**Justificativa:** Jogos possuem dados semi-estruturados que variam entre si — um jogo de PC tem requisitos de sistema, um jogo mobile tem tamanho do app, um jogo de console tem classificação etária diferente. O modelo de documentos JSON permite campos flexíveis por documento sem necessidade de ALTER TABLE. Índices em arrays (gêneros, plataformas) otimizam buscas com filtros múltiplos.
-
-### 🔑 Redis (NoSQL — Key-Value Store — DB2)
-**Dados:** Reviews/avaliações dos jogos e rankings
-
-**Justificativa:** Reviews são dados de leitura frequente e alta velocidade. Redis oferece estruturas como Hashes (para armazenar cada review), Sets (para agrupar reviews por jogo) e Sorted Sets (para ranquear jogos por nota média). A performance de O(1) para leitura é ideal para exibir ratings em tempo real.
-
-### 🕸️ Neo4j (NoSQL — Graph Database — DB3)
-**Dados:** Rede social de jogadores (amizades e recomendações)
-
-**Justificativa:** Relações de amizade são naturalmente modeladas como grafos. Queries como "amigos em comum", "amigos dos meus amigos que jogam X" e "recomendações baseadas na rede social" são extremamente eficientes em bancos de grafos (traversal em O(k) onde k é a profundidade) e seriam muito custosas em bancos relacionais (múltiplos JOINs). Neo4j usa a linguagem Cypher que expressa essas queries de forma intuitiva.
-
-### Arquitetura do Backend
-
-O backend é implementado em **Node.js com Express**, dividido em 4 módulos de rotas:
-
-| Serviço | Rota Base | Banco | Operações |
-|---------|-----------|-------|-----------|
-| Usuários | `/api/users` | PostgreSQL | CRUD de usuários |
-| Jogos | `/api/games` | MongoDB | CRUD de jogos com filtros |
-| Reviews | `/api/reviews` | Redis | CRUD de reviews e rankings |
-| Social | `/api/social` | Neo4j | Amizades e recomendações |
-
-```
-Frontend (HTML/CSS/JS)
-    ↕
-Backend (Node.js + Express)
-    ↕           ↕           ↕           ↕
-PostgreSQL   MongoDB      Redis       Neo4j
-(Usuários)   (Jogos)    (Reviews)   (Amizades)
-```
-
-## 3. Como Executar o Projeto
-
-### Pré-requisitos
-
-1. **Node.js** (v18+): https://nodejs.org
-
-2. **PostgreSQL** — use **Neon** (gratuito online):
-   - Acesse https://neon.tech → crie conta → crie um projeto
-   - Copie a connection string
-
-3. **MongoDB** — use **MongoDB Atlas** (gratuito online):
-   - Acesse https://www.mongodb.com/atlas → crie conta → crie um cluster Free
-   - Em Network Access, libere `0.0.0.0/0`
-   - Copie a connection string
-
-4. **Redis** — use **Redis Cloud** (gratuito online):
-   - Acesse https://redis.com/try-free/ → crie conta → crie um database Free
-   - Copie host, porta e senha
-
-5. **Neo4j** — use **Neo4j AuraDB** (gratuito online):
-   - Acesse https://neo4j.com/cloud/platform/aura-graph-database/ → crie conta → crie instância Free
-   - Anote a URI, usuário e senha
-
-### Passo 1 — Clonar o repositório
-
-```bash
-git clone <url-do-repositorio>
-cd GameVault
+```text
+GameVault/
+|-- backend/
+|   |-- server.js
+|   |-- package.json
+|   |-- .env
+|   |-- config/
+|   |   |-- postgres.js
+|   |   |-- mongodb.js
+|   |   |-- redis.js
+|   |   `-- neo4j.js
+|   `-- routes/
+|       |-- users.js
+|       |-- games.js
+|       |-- reviews.js
+|       `-- social.js
+`-- frontend/
+    |-- index.html      # login
+    |-- cadastro.html   # cadastro
+    `-- app.html        # painel principal protegido
 ```
 
-### Passo 2 — Configurar os bancos de dados
+## Configuracao do `.env`
 
-```bash
-cp backend/.env.example backend/.env
-```
-
-Edite `backend/.env` com suas credenciais:
+Crie/edite o arquivo `backend/.env`:
 
 ```env
 POSTGRES_URL=postgresql://user:pass@host/dbname?sslmode=require
-MONGODB_URL=mongodb+srv://user:pass@cluster.mongodb.net/gamevault
+
+MONGODB_URL=mongodb+srv://user:pass@cluster.mongodb.net/?appName=Cluster0
+MONGODB_DNS_SERVERS=8.8.8.8,1.1.1.1
+
 REDIS_URL=redis://default:pass@host:port
+
 NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
-NEO4J_USER=neo4j
+NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=sua_senha
+NEO4J_DATABASE=neo4j
+
 PORT=3000
 ```
 
-### Passo 3 — Instalar dependências e iniciar o backend
+Observacoes:
 
-```bash
+- `MONGODB_DNS_SERVERS` foi adicionado porque em algumas redes o Node falha ao resolver URLs `mongodb+srv`.
+- Use `redis://` se o seu Redis Cloud nao estiver com TLS habilitado. Use `rediss://` apenas em endpoint Redis com TLS.
+- O nome correto da variavel do Neo4j no projeto e `NEO4J_USERNAME`.
+- Nao publique o `.env` com credenciais reais.
+
+## Como Rodar
+
+### 1. Instalar dependencias do backend
+
+```powershell
 cd backend
 npm install
-node server.js
 ```
 
-O backend inicia em `http://localhost:3000`
+### 2. Rodar a API
 
-### Passo 4 — Abrir o frontend
-
-Abra o arquivo `frontend/index.html` diretamente no navegador.
-
-### Passo 5 — Testar
-
-A interface possui 4 abas:
-- **Usuários**: cadastrar, listar, editar, excluir (PostgreSQL)
-- **Jogos**: cadastrar com gêneros/plataformas, listar, editar, excluir (MongoDB)
-- **Reviews**: avaliar jogos com estrelas, ver reviews, ranking (Redis)
-- **Social**: adicionar amigos, ver amigos, recomendações (Neo4j)
-
-## 4. Estrutura do Projeto
-
-```
-GameVault/
-├── README.md
-├── .gitignore
-├── backend/
-│   ├── package.json
-│   ├── server.js
-│   ├── .env.example
-│   ├── config/
-│   │   ├── postgres.js
-│   │   ├── mongodb.js
-│   │   ├── redis.js
-│   │   └── neo4j.js
-│   └── routes/
-│       ├── users.js      (PostgreSQL)
-│       ├── games.js      (MongoDB)
-│       ├── reviews.js    (Redis)
-│       └── social.js     (Neo4j)
-└── frontend/
-    └── index.html
-
+```powershell
+npm start
 ```
 
-## 5. Tecnologias
+A API fica em:
 
-| Camada | Tecnologia | Finalidade |
-|--------|-----------|------------|
-| Frontend | HTML, CSS, JavaScript | Interface do usuário |
-| Backend | Node.js, Express | API REST |
-| RDB | PostgreSQL | Dados de usuários |
-| DB1 | MongoDB (Document) | Catálogo de jogos |
-| DB2 | Redis (Key-Value) | Reviews e rankings |
-| DB3 | Neo4j (Graph) | Amizades e recomendações |
+```text
+http://localhost:3000
+```
+
+Teste rapido:
+
+```text
+http://localhost:3000/api/health
+```
+
+### 3. Rodar o frontend por porta local
+
+Em outro terminal, a partir da raiz do projeto:
+
+```powershell
+cd frontend
+python -m http.server 5500
+```
+
+Abra no navegador:
+
+```text
+http://localhost:5500
+```
+
+Fluxo esperado:
+
+```text
+Login -> app.html
+Cadastro -> app.html
+Sem login -> volta para index.html
+```
+
+## Rotas Principais
+
+### Usuarios
+
+```http
+POST   /api/users
+POST   /api/users/login
+GET    /api/users
+GET    /api/users/:id
+PUT    /api/users/:id
+DELETE /api/users/:id
+```
+
+### Jogos
+
+```http
+POST   /api/games
+GET    /api/games
+GET    /api/games/:id
+PUT    /api/games/:id
+DELETE /api/games/:id
+```
+
+### Reviews
+
+```http
+POST   /api/reviews
+GET    /api/reviews/game/:gameId
+GET    /api/reviews/top
+PUT    /api/reviews/:id
+DELETE /api/reviews/:id
+```
+
+### Social
+
+```http
+POST   /api/social/friends
+GET    /api/social/friends/:userId
+GET    /api/social/common/:userId1/:userId2
+GET    /api/social/suggestions/:userId
+GET    /api/social/players
+PUT    /api/social/players/:userId
+DELETE /api/social/friends/:userId/:friendId
+```
+
+## Login e Seguranca
+
+O login atual usa a rota `POST /api/users/login` e salva o usuario no `localStorage` com a chave `gamevault_user`. Isso protege a navegacao do frontend, mas ainda e uma autenticacao simples para fins de projeto.
+
+Para producao, o ideal seria:
+
+- Salvar senha com hash usando `bcrypt`.
+- Usar JWT ou sessao de servidor.
+- Proteger rotas do backend com middleware de autenticacao.
+
+## Tecnologias
+
+| Camada | Tecnologia |
+| --- | --- |
+| Frontend | HTML, CSS, JavaScript |
+| Backend | Node.js, Express |
+| Relacional | PostgreSQL |
+| Documentos | MongoDB |
+| Key-value | Redis |
+| Grafo | Neo4j |
