@@ -17,6 +17,30 @@ router.post('/', async (req, res) => {
   }
 });
 
+// LOGIN
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email e senha sao obrigatorios' });
+    }
+
+    const result = await pool.query(
+      'SELECT id, name, email, avatar_url, created_at FROM users WHERE email = $1 AND password = $2',
+      [email, password]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Email ou senha invalidos' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // READ ALL
 router.get('/', async (req, res) => {
   try {
