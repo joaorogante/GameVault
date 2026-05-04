@@ -14,6 +14,7 @@ router.post('/', async (req, res) => {
       rating: String(rating), comment, created_at: new Date().toISOString()
     });
     await redis.sAdd(`game_reviews:${game_id}`, reviewId);
+    await redis.sAdd(`user_reviews:${user_id}`, reviewId);
 
     // Recalcular média
     await recalcRating(redis, game_id);
@@ -34,6 +35,33 @@ router.get('/game/:gameId', async (req, res) => {
       const r = await redis.hGetAll(id);
       if (r && r.game_id) reviews.push({ id, ...r, rating: Number(r.rating) });
     }
+    reviews.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// READ reviews de um usuario
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const redis = getRedis();
+    const userId = String(req.params.userId);
+    const ids = new Set(await redis.sMembers(`user_reviews:${userId}`));
+
+    for await (const key of redis.scanIterator({ MATCH: 'review:*', COUNT: 100 })) {
+      const reviewUserId = await redis.hGet(key, 'user_id');
+      if (String(reviewUserId) === userId) ids.add(key);
+    }
+
+    const reviews = [];
+    for (const id of ids) {
+      const r = await redis.hGetAll(id);
+      if (r && r.game_id && String(r.user_id) === userId) {
+        reviews.push({ id, ...r, rating: Number(r.rating) });
+      }
+    }
+
     reviews.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json(reviews);
   } catch (err) {
@@ -74,8 +102,10 @@ router.delete('/:id', async (req, res) => {
   try {
     const redis = getRedis();
     const gameId = await redis.hGet(req.params.id, 'game_id');
+    const userId = await redis.hGet(req.params.id, 'user_id');
     if (!gameId) return res.status(404).json({ error: 'Review não encontrada' });
     await redis.sRem(`game_reviews:${gameId}`, req.params.id);
+    if (userId) await redis.sRem(`user_reviews:${userId}`, req.params.id);
     await redis.del(req.params.id);
     await recalcRating(redis, gameId);
     res.json({ message: 'Review excluída' });

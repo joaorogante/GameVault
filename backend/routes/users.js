@@ -7,7 +7,7 @@ router.post('/', async (req, res) => {
   try {
     const { name, email, password, avatar_url } = req.body;
     const result = await pool.query(
-      'INSERT INTO users (name, email, password, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id, name, email, avatar_url, created_at',
+      "INSERT INTO users (name, email, password, avatar_url, role) VALUES ($1, $2, $3, $4, 'user') RETURNING id, name, email, avatar_url, role, created_at",
       [name, email, password, avatar_url || '']
     );
     res.status(201).json(result.rows[0]);
@@ -27,7 +27,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT id, name, email, avatar_url, created_at FROM users WHERE email = $1 AND password = $2',
+      "SELECT id, name, email, avatar_url, COALESCE(role, 'user') AS role, created_at FROM users WHERE email = $1 AND password = $2",
       [email, password]
     );
 
@@ -44,7 +44,7 @@ router.post('/login', async (req, res) => {
 // READ ALL
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, email, avatar_url, created_at FROM users ORDER BY id');
+    const result = await pool.query("SELECT id, name, email, avatar_url, COALESCE(role, 'user') AS role, created_at FROM users ORDER BY id");
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -54,7 +54,7 @@ router.get('/', async (req, res) => {
 // READ ONE
 router.get('/:id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, email, avatar_url, created_at FROM users WHERE id = $1', [req.params.id]);
+    const result = await pool.query("SELECT id, name, email, avatar_url, COALESCE(role, 'user') AS role, created_at FROM users WHERE id = $1", [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
     res.json(result.rows[0]);
   } catch (err) {
@@ -67,7 +67,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { name, email, password, avatar_url } = req.body;
     const result = await pool.query(
-      'UPDATE users SET name=$1, email=$2, password=$3, avatar_url=$4 WHERE id=$5 RETURNING id, name, email, avatar_url, created_at',
+      "UPDATE users SET name=$1, email=$2, password=$3, avatar_url=$4 WHERE id=$5 RETURNING id, name, email, avatar_url, COALESCE(role, 'user') AS role, created_at",
       [name, email, password, avatar_url || '', req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
