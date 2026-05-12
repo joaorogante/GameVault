@@ -6,9 +6,10 @@ const { pool } = require('../config/postgres');
 router.post('/', async (req, res) => {
   try {
     const { name, email, password, avatar_url } = req.body;
+    const role = req.body.role === 'admin' ? 'admin' : 'user';
     const result = await pool.query(
-      "INSERT INTO users (name, email, password, avatar_url, role) VALUES ($1, $2, $3, $4, 'user') RETURNING id, name, email, avatar_url, role, created_at",
-      [name, email, password, avatar_url || '']
+      "INSERT INTO users (name, email, password, avatar_url, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, avatar_url, role, created_at",
+      [name, email, password, avatar_url || '', role]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -66,9 +67,10 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { name, email, password, avatar_url } = req.body;
+    const role = req.body.role === 'admin' ? 'admin' : 'user';
     const result = await pool.query(
-      "UPDATE users SET name=$1, email=$2, password=$3, avatar_url=$4 WHERE id=$5 RETURNING id, name, email, avatar_url, COALESCE(role, 'user') AS role, created_at",
-      [name, email, password, avatar_url || '', req.params.id]
+      "UPDATE users SET name=$1, email=$2, password=$3, avatar_url=$4, role=$5 WHERE id=$6 RETURNING id, name, email, avatar_url, COALESCE(role, 'user') AS role, created_at",
+      [name, email, password, avatar_url || '', role, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
     res.json(result.rows[0]);

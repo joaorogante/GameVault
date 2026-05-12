@@ -30,6 +30,9 @@ async function initNeo4j() {
 }
 
 function getDriver() {
+  if (!driver) {
+    throw new Error('Neo4j nao conectado');
+  }
   return driver;
 }
 

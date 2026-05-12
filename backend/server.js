@@ -34,7 +34,11 @@ async function start() {
     await initPostgres();
     await initMongoDB();
     await initRedis();
-    await initNeo4j();
+    try {
+      await initNeo4j();
+    } catch (err) {
+      console.warn('⚠️ Neo4j indisponivel:', err.message);
+    }
 
     app.listen(PORT, () => {
       console.log(`\n🎮 GameVault API rodando em http://localhost:${PORT}`);

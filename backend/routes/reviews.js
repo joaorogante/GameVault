@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getRedis } = require('../config/redis');
+const { getDriver } = require('../config/neo4j');
 
 // CREATE review
 router.post('/', async (req, res) => {
@@ -18,6 +19,7 @@ router.post('/', async (req, res) => {
 
     // Recalcular média
     await recalcRating(redis, game_id);
+    await syncReviewToGraph({ game_id, user_id, user_name, rating });
 
     res.status(201).json({ id: reviewId, game_id, user_name, rating: Number(rating), comment });
   } catch (err) {
@@ -89,7 +91,10 @@ router.put('/:id', async (req, res) => {
     const { rating, comment } = req.body;
     await redis.hSet(req.params.id, { rating: String(rating), comment });
     const gameId = await redis.hGet(req.params.id, 'game_id');
+    const userId = await redis.hGet(req.params.id, 'user_id');
+    const userName = await redis.hGet(req.params.id, 'user_name');
     await recalcRating(redis, gameId);
+    await syncReviewToGraph({ game_id: gameId, user_id: userId, user_name: userName, rating });
     const updated = await redis.hGetAll(req.params.id);
     res.json({ id: req.params.id, ...updated });
   } catch (err) {
@@ -107,6 +112,7 @@ router.delete('/:id', async (req, res) => {
     await redis.sRem(`game_reviews:${gameId}`, req.params.id);
     if (userId) await redis.sRem(`user_reviews:${userId}`, req.params.id);
     await redis.del(req.params.id);
+    await removeReviewFromGraph({ game_id: gameId, user_id: userId });
     await recalcRating(redis, gameId);
     res.json({ message: 'Review excluída' });
   } catch (err) {
@@ -123,6 +129,50 @@ async function recalcRating(redis, gameId) {
     if (r) total += Number(r);
   }
   await redis.zAdd('game_ratings', { score: total / ids.length, value: gameId });
+}
+
+async function syncReviewToGraph({ game_id, user_id, user_name, rating }) {
+  let session;
+  try {
+    session = getDriver().session();
+    await session.run(`
+      MERGE (p:Player {userId: $userId})
+      ON CREATE SET p.name = $userName
+      ON MATCH SET p.name = $userName
+      MERGE (g:Game {gameId: $gameId})
+      MERGE (p)-[r:REVIEWED]->(g)
+      SET r.rating = $rating, r.updatedAt = datetime()
+    `, {
+      userId: String(user_id),
+      userName: user_name || String(user_id),
+      gameId: String(game_id),
+      rating: Number(rating)
+    });
+  } catch (err) {
+    console.warn('Neo4j review sync falhou:', err.message);
+  } finally {
+    if (session) await session.close();
+  }
+}
+
+async function removeReviewFromGraph({ game_id, user_id }) {
+  if (!game_id || !user_id) return;
+
+  let session;
+  try {
+    session = getDriver().session();
+    await session.run(`
+      MATCH (:Player {userId: $userId})-[r:REVIEWED]->(:Game {gameId: $gameId})
+      DELETE r
+    `, {
+      userId: String(user_id),
+      gameId: String(game_id)
+    });
+  } catch (err) {
+    console.warn('Neo4j review delete sync falhou:', err.message);
+  } finally {
+    if (session) await session.close();
+  }
 }
 
 module.exports = router;
